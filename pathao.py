@@ -92,7 +92,7 @@ html_template = """
 
     @font-face {
     font-family: 'Kalpurush';
-    src: url('https://www.omicronlab.com/download/fonts/kalpurush.ttf') format('truetype');
+    src: url('kalpurush.ttf') format('truetype');
     font-weight: normal;
     font-style: normal;
 }
