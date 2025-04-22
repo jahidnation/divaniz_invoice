@@ -13,13 +13,19 @@ pip install jinja2
 
 
 
-Normal
+Pathao 
 -----------------------------------
 ```
 
-python run.py
+python pathao.py
 
 ```
 
 
+Divaniz 
+-----------------------------------
+```
 
+python divaniz.py
+
+```
