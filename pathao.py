@@ -71,7 +71,7 @@ html_template = """
 
     .customer-info p {
         margin-bottom: 1mm;
-        font-size: 7pt;
+        font-size: 8pt;
         color: #000;
     }
 
@@ -257,7 +257,7 @@ with open(merged_output_path, "w", encoding="utf-8") as merged_file:
 
     .customer-info p {
         margin-bottom: 1mm;
-        font-size: 7pt;
+        font-size: 8pt;
         color: #000;
     }
 
