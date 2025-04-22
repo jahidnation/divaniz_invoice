@@ -45,7 +45,7 @@ html_template = """
     }
 
     .label-logo {
-        height: 5mm;
+        height: 7mm;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -231,7 +231,7 @@ with open(merged_output_path, "w", encoding="utf-8") as merged_file:
     }
 
     .label-logo {
-        height: 5mm;
+        height: 7mm;
         display: flex;
         justify-content: center;
         align-items: center;
