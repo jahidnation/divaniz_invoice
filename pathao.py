@@ -182,8 +182,8 @@ def copy_resources():
         else:
             print(f"Warning: {resource} not found in search paths.")
 
-# Process all CSV files in the "invoice" directory
-for csv_path in glob.glob('invoice/*.csv'):
+# Process all CSV files in the "pathao_invoice" directory
+for csv_path in glob.glob('pathao_invoice/*.csv'):
     generate_html_from_csv(csv_path, html_template)
 
 # Copy logo.png and kalpurush.ttf to output directory
