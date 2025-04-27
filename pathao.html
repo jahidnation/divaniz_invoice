@@ -1,0 +1,500 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pathao Label Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <style>
+    @font-face {
+      font-family: 'Kalpurush';
+      src: url('https://www.omicronlab.com/download/fonts/kalpurush.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+    .parcel-label {
+      width: 50mm;
+      height: 75mm;
+      background: #fff;
+      border: none;
+      border-radius: 2mm;
+      padding: 3mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      font-family: 'Kalpurush', 'Poppins', sans-serif;
+      font-size: 7pt;
+      box-sizing: border-box;
+      margin: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .label-logo {
+      height: 5mm;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      font-size: 12pt;
+      font-weight: bold;
+      color: #000;
+      padding: 1mm 0;
+    }
+    .label-logo img {
+      max-height: 100%;
+      max-width: 100%;
+      height: 7mm;
+      width: auto;
+      display: block;
+      margin: auto;
+    }
+    .customer-info {
+      border: 1px solid #000;
+      border-radius: 1mm;
+      padding: 2mm;
+      font-size: 7pt;
+      line-height: 1.2;
+    }
+    .customer-info p {
+      margin-bottom: 1mm;
+      font-size: 8pt;
+      color: #000;
+    }
+    .customer-info .label {
+      font-weight: bold;
+    }
+    .mrcnt-name p {
+      font-size: 7pt;
+      text-align: center;
+      color: #111;
+    }
+    .label-footer {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 6pt;
+      color: #000;
+      margin-top: 1mm;
+      text-align: center;
+    }
+    .address {
+      white-space: pre-wrap;
+    }
+    @media print {
+      @page {
+        size: 50mm 75mm;
+        margin: 0;
+      }
+      .parcel-label {
+        margin: 0;
+        box-shadow: none;
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center min-h-screen p-4">
+  <div class="w-full max-w-2xl bg-white rounded-lg shadow-lg p-6">
+    <h1 class="text-2xl font-bold text-center mb-4">Pathao Label Generator</h1>
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-700 mb-2">Upload CSV File</label>
+      <input type="file" id="csvFile" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+    </div>
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-700 mb-2">Upload Logo (logo.png, optional)</label>
+      <input type="file" id="logoFile" accept=".png" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+    </div>
+    <button id="generateBtn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400" disabled>Generate Labels</button>
+    <div id="labelsPreview" class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+    <button id="downloadBtn" class="w-full mt-4 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 hidden">Download All Labels</button>
+    <p id="error" class="text-red-500 text-sm mt-2 hidden"></p>
+  </div>
+  <script>
+    const labelTemplate = `
+      <div class="parcel-label">
+        <div class="label-top">
+          <div class="label-logo">
+            {{logoContent}}
+          </div>
+        </div>
+        <div class="label-body">
+          <div class="mrcnt-name"></div>
+          <div class="customer-info">
+            <p><span class="label">Name:</span> {{name}}</p>
+            <p><span class="label">Phone:</span> {{phone}}</p>
+            <p><span class="label">COD:</span> {{collectableamount}}</p>
+            <p><span class="label">Address:</span> <span class="address">{{address}}</span></p>
+            <p><span class="label">Product:</span> {{product}}</p>
+          </div>
+        </div>
+        <div class="label-footer">
+          <div class="power-by">
+            <p>Thanks for Shopping at</p>
+            <p>www.divaniz.com</p>
+          </div>
+        </div>
+      </div>`;
+    const mergedTemplate = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Merged Labels</title>
+        <style>
+          @page {
+            size: 50mm 75mm;
+            margin: 0;
+          }
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Kalpurush', 'Poppins', sans-serif;
+          }
+          body {
+            font-family: 'Kalpurush', 'Poppins', sans-serif;
+            font-size: 7pt;
+          }
+          .parcel-label {
+            width: 50mm;
+            height: 75mm;
+            background: #fff;
+            border: none;
+            border-radius: 2mm;
+            padding: 3mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            page-break-after: always;
+          }
+          .label-logo {
+            height: 5mm;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            font-size: 12pt;
+            font-weight: bold;
+            color: #000;
+            padding: 1mm 0;
+          }
+          .label-logo img {
+            max-height: 100%;
+            max-width: 100%;
+            height: 7mm;
+            width: auto;
+            display: block;
+            margin: auto;
+          }
+          .customer-info {
+            border: 1px solid #000;
+            border-radius: 1mm;
+            padding: 2mm;
+            font-size: 7pt;
+            line-height: 1.2;
+          }
+          .customer-info p {
+            margin-bottom: 1mm;
+            font-size: 8pt;
+            color: #000;
+          }
+          .customer-info .label {
+            font-weight: bold;
+          }
+          .mrcnt-name p {
+            font-size: 7pt;
+            text-align: center;
+            color: #111;
+          }
+          .label-footer {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 6pt;
+            color: #000;
+            margin-top: 1mm;
+            text-align: center;
+          }
+          .address {
+            white-space: pre-wrap;
+          }
+          @font-face {
+            font-family: 'Kalpurush';
+            src: url('https://www.omicronlab.com/download/fonts/kalpurush.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+          }
+        </style>
+      </head>
+      <body>
+        {{labels}}
+      </body>
+      </html>`;
+    let labels = [];
+    let logoSrc = null;
+    let logoFile = null;
+    const csvInput = document.getElementById('csvFile');
+    const logoInput = document.getElementById('logoFile');
+    const generateBtn = document.getElementById('generateBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const labelsPreview = document.getElementById('labelsPreview');
+    const errorMsg = document.getElementById('error');
+    csvInput.addEventListener('change', () => {
+      generateBtn.disabled = !csvInput.files.length;
+    });
+    logoInput.addEventListener('change', () => {
+      if (logoInput.files.length > 0) {
+        logoSrc = URL.createObjectURL(logoInput.files[0]);
+        logoFile = logoInput.files[0];
+      } else {
+        logoSrc = null;
+        logoFile = null;
+      }
+    });
+    generateBtn.addEventListener('click', () => {
+      labels = [];
+      labelsPreview.innerHTML = '';
+      errorMsg.classList.add('hidden');
+      downloadBtn.classList.add('hidden');
+      const file = csvInput.files[0];
+      if (!file) {
+        showError('Please upload a CSV file.');
+        return;
+      }
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: result => {
+          const required = ['Recipient name', 'Recipient phone', 'Collectable Amount', 'Recipient address', 'Order description'];
+          const headers = result.meta.fields;
+          if (!required.every(col => headers.includes(col))) {
+            showError('CSV is missing required columns: Recipient name, Recipient phone, Collectable Amount, Recipient address, Order description.');
+            return;
+          }
+          labels = result.data;
+          if (labels.length === 0) {
+            showError('No valid data found in the CSV file.');
+            return;
+          }
+          labels.forEach((row, index) => {
+            const formattedAddress = (row['Recipient address'] || '').replace(/,/g, ', ');
+            const logoContent = logoSrc ? `<img src="${logoSrc}" alt="Logo">` : 'DIVANIZ';
+            const html = render(labelTemplate, {
+              logoContent,
+              name: row['Recipient name'] || '',
+              phone: row['Recipient phone'] || '',
+              collectableamount: row['Collectable Amount'] || '',
+              address: formattedAddress,
+              product: row['Order description'] || ''
+            });
+            const container = document.createElement('div');
+            container.className = 'flex flex-col items-center';
+            container.innerHTML = html;
+            const downloadButton = document.createElement('button');
+            downloadButton.className = 'mt-2 bg-blue-500 text-white py-1 px-3 rounded-md text-sm hover:bg-blue-600';
+            downloadButton.textContent = 'Download';
+            downloadButton.addEventListener('click', () => downloadIndividualLabel(row, index + 1));
+            container.appendChild(downloadButton);
+            labelsPreview.appendChild(container);
+          });
+          downloadBtn.classList.remove('hidden');
+        },
+        error: () => {
+          showError('Error parsing CSV file. Please ensure it is valid.');
+        }
+      });
+    });
+    downloadBtn.addEventListener('click', () => {
+      const labelsHtml = labels.map(row => {
+        const formattedAddress = (row['Recipient address'] || '').replace(/,/g, ', ');
+        const logoContent = logoFile ? `<img src="logo.png" alt="Logo">` : 'DIVANIZ';
+        return render(labelTemplate, {
+          logoContent,
+          name: row['Recipient name'] || '',
+          phone: row['Recipient phone'] || '',
+          collectableamount: row['Collectable Amount'] || '',
+          address: formattedAddress,
+          product: row['Order description'] || ''
+        });
+      }).join('\n\n');
+      const fullHtml = render(mergedTemplate, { labels: labelsHtml });
+      const blob = new Blob([fullHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'merge.html';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+    function downloadIndividualLabel(row, index) {
+      const formattedAddress = (row['Recipient address'] || '').replace(/,/g, ', ');
+      const logoContent = logoFile ? `<img src="logo.png" alt="Logo">` : 'DIVANIZ';
+      const html = render(labelTemplate, {
+        logoContent,
+        name: row['Recipient name'] || '',
+        phone: row['Recipient phone'] || '',
+        collectableamount: row['Collectable Amount'] || '',
+        address: formattedAddress,
+        product: row['Order description'] || ''
+      });
+      const fullHtml = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <title>Label ${index}</title>
+          <style>
+            ${getLabelStyles()}
+          </style>
+        </head>
+        <body>
+          ${html}
+        </body>
+        </html>`;
+      const blob = new Blob([fullHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `label-${index}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    function getLabelStyles() {
+      return `
+        @page {
+          size: 50mm 75mm;
+          margin: 0;
+        }
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+          font-family: 'Kalpurush', 'Poppins', sans-serif;
+        }
+        body {
+          font-family: 'Kalpurush', 'Poppins', sans-serif;
+          font-size: 7pt;
+        }
+        .parcel-label {
+          width: 50mm;
+          height: 75mm;
+          background: #fff;
+          border: none;
+          border-radius: 2mm;
+          padding: 3mm;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+        .label-logo {
+          height: 5mm;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          overflow: hidden;
+          font-size: 12pt;
+          font-weight: bold;
+          color: #000;
+          padding: 1mm 0;
+        }
+        .label-logo img {
+          max-height: 100%;
+          max-width: 100%;
+          height: 7mm;
+          width: auto;
+          display: block;
+          margin: auto;
+        }
+        .customer-info {
+          border: 1px solid #000;
+          border-radius: 1mm;
+          padding: 2mm;
+          font-size: 7pt;
+          line-height: 1.2;
+        }
+        .customer-info p {
+          margin-bottom: 1mm;
+          font-size: 8pt;
+          color: #000;
+        }
+        .customer-info .label {
+          font-weight: bold;
+        }
+        .mrcnt-name p {
+          font-size: 7pt;
+          text-align: center;
+          color: #111;
+        }
+        .label-footer {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          font-size: 6pt;
+          color: #000;
+          margin-top: 1mm;
+          text-align: center;
+        }
+        .address {
+          white-space: pre-wrap;
+        }
+        @font-face {
+          font-family: 'Kalpurush';
+          src: url('https://www.omicronlab.com/download/fonts/kalpurush.ttf') format('truetype');
+          font-weight: normal;
+          font-style: normal;
+        }
+      `;
+    }
+    function render(template, data) {
+      return Object.keys(data).reduce((str, key) => str.replace(new RegExp(`{{${key}}}`, 'g'), data[key]), template);
+    }
+    function showError(message) {
+      errorMsg.textContent = message;
+      errorMsg.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
